@@ -1,17 +1,32 @@
-use serde::{Deserialize, Serialize};
+use serde::{Serialize, Deserialize};
 use serde_json::{Value};
 
-#[derive(Deserialize, Serialize)]
-pub struct Data {
-    component_id: String,
-    json: Value,   
-}
-
 #[derive(Serialize)]
-pub struct Event {
+pub struct Data {
     pub seconds_since_unix: u64,
     pub nano_seconds: u32,
-    pub data: Data
+    pub data: Value
+}
+
+#[derive(Deserialize)]
+pub struct IncomingData {
+    pub event_type: String,
+    pub topics: Vec<String>,
+    pub data: Value,
+}
+
+#[derive(Serialize, Debug, Clone)]
+pub enum Event {
+    Message {
+        seconds_since_unix: u64,
+        nano_seconds: u32,
+        topics: Vec<String>,
+        data: Value
+    },
+    Register {
+        // TODO: as vector of strings
+        topics: Value
+    }
 }
 
 pub enum Request {

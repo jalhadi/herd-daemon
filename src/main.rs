@@ -22,8 +22,10 @@ struct Opts {
     api_key: String,
     #[clap(short = "d", long = "device_type_id")]
     device_type_id: String,
-    #[clap(short = "p", long = "port", default_value = "5555")]
-    port: String,
+    #[clap(short = "o", long = "outbound_port", default_value = "5555")]
+    outbound_port: String,
+    #[clap(short = "i", long = "inbound_port", default_value = "5556")]
+    inbound_port: String,
 }
 
 fn main() {
@@ -51,7 +53,8 @@ fn main() {
         &opts.account_id,
         &opts.api_key,
         &opts.device_type_id,
-        &opts.port,
+        &opts.outbound_port,
+        &opts.inbound_port,
         sender,
         receiver
     );

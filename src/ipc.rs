@@ -5,7 +5,7 @@ use std::time::SystemTime;
 use serde_json::{Result as SerdeResult};
 use zmq;
 
-use crate::models::{Data, Event, Request};
+use crate::models::{IncomingData, Event, Request};
 
 struct CreatedAt {
     seconds_since_unix: u64,
@@ -29,18 +29,22 @@ fn get_time() -> Result<CreatedAt, &'static str> {
     )
 }
 
-pub fn initialize<'a>(sender: Sender<Request>, port: &'a str) -> JoinHandle<()> {
-    let context = zmq::Context::new();
-    let responder = context.socket(zmq::REP).unwrap();
-    let mut msg = zmq::Message::new();
-    let tcp_port = format!("tcp://*:{}", port);
-    assert!(responder.bind(&tcp_port).is_ok());
+pub fn initialize<'a>(
+    sender: Sender<Request>,
+    outbound_port: &'a str,
+    context: zmq::Context
+) -> JoinHandle<()> {
+    let outbound_responder = context.socket(zmq::REP).unwrap();
+    let mut outbound_msg = zmq::Message::new();
+    let outbound_tcp_port = format!("tcp://*:{}", outbound_port);
+    assert!(outbound_responder.bind(&outbound_tcp_port).is_ok());
 
-    thread::spawn(move || {
+    // Sender thread: receives a message to be send over websocket
+    let sender_thread = thread::spawn(move || {
         loop {
             // in ZeroMQ, send and receive happen in a pair
-            responder.recv(&mut msg, 0).unwrap();
-            responder.send("", 0).unwrap();
+            outbound_responder.recv(&mut outbound_msg, 0).unwrap();
+            outbound_responder.send("", 0).unwrap();
             let time = match get_time() {
                 Ok(t) => t,
                 Err(e) => {
@@ -48,7 +52,7 @@ pub fn initialize<'a>(sender: Sender<Request>, port: &'a str) -> JoinHandle<()> 
                     continue;
                 },
             };
-            let message = match msg.as_str() {
+            let message = match outbound_msg.as_str() {
                 Some(m) => m,
                 None => continue,
             };
@@ -62,7 +66,7 @@ pub fn initialize<'a>(sender: Sender<Request>, port: &'a str) -> JoinHandle<()> 
                     return;
                 },
                 _ => {
-                    let data: SerdeResult<Data> = serde_json::from_str(message);
+                    let data: SerdeResult<IncomingData> = serde_json::from_str(message);
 
                     let data = match data {
                         Ok(d) => d,
@@ -72,17 +76,40 @@ pub fn initialize<'a>(sender: Sender<Request>, port: &'a str) -> JoinHandle<()> 
                         }
                     };
 
-                    let event = Request::Data(Event {
-                        seconds_since_unix: time.seconds_since_unix,
-                        nano_seconds: time.nano_seconds,
-                        data,
-                    });
-                    match sender.send(event) {
+                    let data2: Event;
+                    if data.event_type == "register" {
+                        let topics = match data.data.get("topics") {
+                            Some(t) => t.to_owned(),
+                            None => {
+                                println!("topics field not present");
+                                continue;
+                            }
+                        };
+                        data2 = Event::Register {
+                            topics,
+                        }
+
+                    } else if data.event_type == "message" {
+                        data2 = Event::Message {
+                            seconds_since_unix: time.seconds_since_unix,
+                            nano_seconds: time.nano_seconds,
+                            topics: data.topics,
+                            data: data.data,
+                        };
+                    } else {
+                        println!("{:?} not a valid event type.", data.event_type);
+                        continue;
+                    }
+
+                    let request_data = Request::Data(data2);
+                    match sender.send(request_data) {
                         Ok(_) => (),
                         Err(e) => println!("Error passing message: {:?}", e),
                     };
                 },
             };
         };
-    })
+    });
+
+    return sender_thread;
 }

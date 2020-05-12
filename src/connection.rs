@@ -6,6 +6,7 @@ use hyper::header::parsing::from_one_raw_str;
 use std::thread;
 use std::thread::JoinHandle;
 use std::fmt;
+use zmq;
 
 use crate::models::{Request, ClientInformation};
 
@@ -60,12 +61,22 @@ impl ClientInformation {
     }
 }
 
-pub fn initialize(client_information: ClientInformation, sender: Sender<Request>, receiver: Receiver<Request>) -> (JoinHandle<()>, JoinHandle<()>) {
-    websocket(client_information, sender, receiver)
+pub fn initialize(
+    client_information: ClientInformation,
+    sender: Sender<Request>,
+    receiver: Receiver<Request>,
+    inbound_socket: zmq::Socket,
+) -> (JoinHandle<()>, JoinHandle<()>) {
+    websocket(client_information, sender, receiver, inbound_socket)
 }
 
 // TODO: add reconnect logic on disconnect
-fn websocket(client_information: ClientInformation, sender: Sender<Request>, receiver: Receiver<Request>) -> (JoinHandle<()>, JoinHandle<()>) {
+fn websocket(
+    client_information: ClientInformation,
+    sender: Sender<Request>,
+    receiver: Receiver<Request>,
+    inbound_socket: zmq::Socket,
+) -> (JoinHandle<()>, JoinHandle<()>) {
     let mut headers = Headers::new();
     headers.set(
         Authorization(
@@ -119,6 +130,8 @@ fn websocket(client_information: ClientInformation, sender: Sender<Request>, rec
         }
     });
 
+    let mut inbound_msg = zmq::Message::new();
+
     let receiver_thread = thread::spawn(move || {
         for message in client_receiver.incoming_messages() {
             let message = match message {
@@ -144,7 +157,29 @@ fn websocket(client_information: ClientInformation, sender: Sender<Request>, rec
                         }
                     };
                 },
-                _ => println!("Received message: {:?}", message),
+                OwnedMessage::Text(data) => {
+                    println!("Received text message: {:?}", data);
+                    match inbound_socket.send((&data).as_bytes(), 0) {
+                        Ok(_) => (),
+                        Err(e) => {
+                            println!("ERROR SENDING: {:?}", e);
+                            continue;
+                        }
+                    };
+                    match inbound_socket.recv(&mut inbound_msg, 0) {
+                        Ok(_) => (),
+                        Err(e) => {
+                            println!("ERROR RECEIVING: {:?}", e);
+                            continue;
+                        }
+                    };
+                },
+                OwnedMessage::Binary(data) => {
+                    println!("Received binary message: {:?}", data);
+                    // inbound_socket.send(data, 0).unwrap();
+                    // inbound_socket.recv(&mut inbound_msg, 0).unwrap();
+                },
+                _ => println!("Pong received"),
             }
         }
     });
