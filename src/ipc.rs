@@ -76,7 +76,7 @@ pub fn initialize<'a>(
                         }
                     };
 
-                    let data2: Event;
+                    let event: Event;
                     if data.event_type == "register" {
                         let topics = match data.data.get("topics") {
                             Some(t) => t.to_owned(),
@@ -85,12 +85,12 @@ pub fn initialize<'a>(
                                 continue;
                             }
                         };
-                        data2 = Event::Register {
+                        event = Event::Register {
                             topics,
                         }
 
                     } else if data.event_type == "message" {
-                        data2 = Event::Message {
+                        event = Event::Message {
                             seconds_since_unix: time.seconds_since_unix,
                             nano_seconds: time.nano_seconds,
                             topics: data.topics,
@@ -101,7 +101,7 @@ pub fn initialize<'a>(
                         continue;
                     }
 
-                    let request_data = Request::Data(data2);
+                    let request_data = Request::Data(event);
                     match sender.send(request_data) {
                         Ok(_) => (),
                         Err(e) => println!("Error passing message: {:?}", e),

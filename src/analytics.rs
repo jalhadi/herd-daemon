@@ -29,7 +29,7 @@ pub fn initialize<'a>(
 
 
     let client_information = ClientInformation::new(
-        "dev_123",
+        "dev_1234",
         device_type_id,
         account_id,
         api_key,

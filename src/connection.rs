@@ -134,6 +134,7 @@ fn websocket(
 
     let receiver_thread = thread::spawn(move || {
         for message in client_receiver.incoming_messages() {
+            println!("message received: {:?}", message);
             let message = match message {
                 Ok(m) => m,
                 Err(e) => {
