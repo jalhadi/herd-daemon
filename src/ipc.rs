@@ -34,17 +34,14 @@ pub fn initialize<'a>(
     outbound_port: &'a str,
     context: zmq::Context
 ) -> JoinHandle<()> {
-    let outbound_responder = context.socket(zmq::REP).unwrap();
-    let mut outbound_msg = zmq::Message::new();
+    let subscriber = context.socket(zmq::PAIR).unwrap();
     let outbound_tcp_port = format!("tcp://*:{}", outbound_port);
-    assert!(outbound_responder.bind(&outbound_tcp_port).is_ok());
+    assert!(subscriber.bind(&outbound_tcp_port).is_ok());
 
     // Sender thread: receives a message to be send over websocket
     let sender_thread = thread::spawn(move || {
         loop {
-            // in ZeroMQ, send and receive happen in a pair
-            outbound_responder.recv(&mut outbound_msg, 0).unwrap();
-            outbound_responder.send("", 0).unwrap();
+            let maybe_message = subscriber.recv_msg(0).unwrap();
             let time = match get_time() {
                 Ok(t) => t,
                 Err(e) => {
@@ -52,9 +49,9 @@ pub fn initialize<'a>(
                     continue;
                 },
             };
-            let message = match outbound_msg.as_str() {
-                Some(m) => m,
-                None => continue,
+            let message = match std::str::from_utf8(&maybe_message) {
+                Ok(m) => m,
+                Err(_) => continue,
             };
 
             println!("Message received: {:?}", message);
