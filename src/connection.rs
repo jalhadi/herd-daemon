@@ -167,13 +167,6 @@ fn websocket(
                             continue;
                         }
                     };
-                    match inbound_socket.recv(&mut inbound_msg, 0) {
-                        Ok(_) => (),
-                        Err(e) => {
-                            println!("ERROR RECEIVING: {:?}", e);
-                            continue;
-                        }
-                    };
                 },
                 OwnedMessage::Binary(data) => {
                     println!("Received binary message: {:?}", data);

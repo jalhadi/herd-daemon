@@ -23,7 +23,7 @@ pub fn initialize<'a>(
     let context = zmq::Context::new();
     // For messages that come into the websocket, this is a channel
     // to comunicate with the process outside
-    let inbound_socket = context.socket(zmq::REQ).unwrap();
+    let inbound_socket = context.socket(zmq::PAIR).unwrap();
     let inbound_tcp_port = format!("tcp://localhost:{}", inbound_port);
     assert!(inbound_socket.connect(&inbound_tcp_port).is_ok());
 
