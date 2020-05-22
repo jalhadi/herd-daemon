@@ -34,7 +34,7 @@ pub fn initialize<'a>(
     outbound_port: &'a str,
     context: zmq::Context
 ) -> JoinHandle<()> {
-    let subscriber = context.socket(zmq::PAIR).unwrap();
+    let subscriber = context.socket(zmq::PULL).unwrap();
     let outbound_tcp_port = format!("tcp://*:{}", outbound_port);
     assert!(subscriber.bind(&outbound_tcp_port).is_ok());
 
@@ -60,6 +60,10 @@ pub fn initialize<'a>(
                 "Close" => {
                     println!("Closing connection.");
                     let _ = sender.send(Request::Close);
+                    return;
+                },
+                "WebsocketClose" => {
+                    println!("Websocket closed. Closing connection.");
                     return;
                 },
                 _ => {

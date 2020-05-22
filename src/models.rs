@@ -35,6 +35,7 @@ pub enum Request {
     Pong(Vec<u8>)
 }
 
+#[derive(Clone)]
 pub struct ClientInformation {
     pub device_id: String,
     pub device_type_id: String,
