@@ -1,11 +1,11 @@
-use std::sync::mpsc::Sender;
+use std::sync::mpsc::{Sender, Receiver};
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::SystemTime;
 use serde_json::{Result as SerdeResult};
 use zmq;
 
-use crate::models::{IncomingData, Event, Request};
+use crate::models::{OutgoingData, Event, Request, InboundMessage};
 
 struct CreatedAt {
     seconds_since_unix: u64,
@@ -29,11 +29,17 @@ fn get_time() -> Result<CreatedAt, &'static str> {
     )
 }
 
+// TODO: create new "receiver thread" (handles inbound connections
+// to be passed to client) with receiver channel. Would allow
+// for messages to be sent more easily for information concerning
+// connection status, retry logic, shutdown
 pub fn initialize<'a>(
     sender: Sender<Request>,
+    receiver: Receiver<InboundMessage>,
     outbound_port: &'a str,
-    context: zmq::Context
-) -> JoinHandle<()> {
+    context: zmq::Context,
+    inbound_socket: zmq::Socket,
+) -> (JoinHandle<()>, JoinHandle<()>) {
     let subscriber = context.socket(zmq::PULL).unwrap();
     let outbound_tcp_port = format!("tcp://*:{}", outbound_port);
     assert!(subscriber.bind(&outbound_tcp_port).is_ok());
@@ -60,6 +66,7 @@ pub fn initialize<'a>(
                 "Close" => {
                     println!("Closing connection.");
                     let _ = sender.send(Request::Close);
+                    println!("Returning from sender thread");
                     return;
                 },
                 "WebsocketClose" => {
@@ -67,7 +74,7 @@ pub fn initialize<'a>(
                     return;
                 },
                 _ => {
-                    let data: SerdeResult<IncomingData> = serde_json::from_str(message);
+                    let data: SerdeResult<OutgoingData> = serde_json::from_str(message);
 
                     let data = match data {
                         Ok(d) => d,
@@ -112,5 +119,32 @@ pub fn initialize<'a>(
         };
     });
 
-    return sender_thread;
+    let receiver_thread = thread::spawn(move || {
+        loop {
+            // let message = receiver.recv().unwrap();
+            let message = match receiver.recv() {
+                Ok(m) => m,
+                Err(e) => {
+                    println!("ERROR SENDING: {:?}", e);
+                    continue;
+                }
+            };
+
+            let send_result = match message {
+                InboundMessage::Data(d) => inbound_socket.send(d.as_bytes(), 0),
+                InboundMessage::Restart => inbound_socket.send("restart".as_bytes(), 0),
+                InboundMessage::Close => {
+                    let _ = inbound_socket.send("close".as_bytes(), 0);
+                    println!("Returning from receiver thread");
+                    return;
+                },
+            };
+            match send_result {
+                Ok(_) => (),
+                Err(e) => eprintln!("Error sending inbound message: {:?}", e),
+            }
+        }
+    });
+
+    return (sender_thread, receiver_thread);
 }

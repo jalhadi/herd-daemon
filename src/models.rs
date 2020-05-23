@@ -9,10 +9,18 @@ pub struct Data {
 }
 
 #[derive(Deserialize)]
-pub struct IncomingData {
+pub struct OutgoingData {
     pub event_type: String,
     pub topics: Vec<String>,
     pub data: Value,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum InboundMessage {
+    Data(String),
+    Restart,
+    Close,
 }
 
 #[derive(Serialize, Debug, Clone)]

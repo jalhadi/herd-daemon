@@ -9,7 +9,8 @@ use std::fmt;
 use zmq;
 use std::sync::{Arc, Mutex};
 
-use crate::models::{Request, ClientInformation};
+use crate::models::{Request, ClientInformation, InboundMessage};
+use crate::utils::maybe_error;
 
 #[derive(Debug, Clone)]
 struct DeviceIdHeader(String);
@@ -69,11 +70,12 @@ pub fn initialize(
     client_information: ClientInformation,
     sender: Sender<Request>,
     receiver: Receiver<Request>,
-    inbound_socket: zmq::Socket,
+    inbound_sender: Sender<InboundMessage>,
+    // inbound_socket: zmq::Socket,
     ipc_socket: zmq::Socket,
 ) -> JoinHandle<()> {
     let receiver_arc = Arc::new(Mutex::new(receiver));
-    let inbound_socket_arc = Arc::new(Mutex::new(inbound_socket));
+    // let inbound_socket_arc = Arc::new(Mutex::new(inbound_socket));
     thread::spawn(move || {
         let mut retries = 0;
         loop {
@@ -85,7 +87,8 @@ pub fn initialize(
                 client_information.clone(),
                 sender.clone(),
                 receiver_arc.clone(),
-                inbound_socket_arc.clone()
+                inbound_sender.clone(),
+                // inbound_socket_arc.clone()
             );
 
             let (sender_thread, receiver_thread) = match result {
@@ -101,6 +104,10 @@ pub fn initialize(
                             retries,
                             MAX_RETRIES
                         );
+                        match inbound_sender.send(InboundMessage::Restart) {
+                            Ok(_) => (),
+                            Err(e) => eprintln!("{:?}", e),
+                        };
                         thread::sleep(time::Duration::from_millis(RETRY_SLEEP_DURATION_MILLIS));
                         continue;
                     } else {
@@ -108,13 +115,8 @@ pub fn initialize(
                             "Error starting websocket connection. Max retries ({}) exceeded.",
                             MAX_RETRIES
                         );
-                        match ipc_socket.send("WebsocketClose".as_bytes(), 0) {
-                            Ok(_) => (),
-                            Err(e) => {
-                                println!("ERROR SENDING: {:?}", e);
-                                continue;
-                            }
-                        };
+                        maybe_error(ipc_socket.send("WebsocketClose".as_bytes(), 0));
+                        maybe_error(inbound_sender.send(InboundMessage::Close));
                         return;
                     }
                 }
@@ -133,7 +135,8 @@ pub fn initialize(
                     false
                 },
             };
-            if !sender_output && ! receiver_output {
+            if !sender_output && !receiver_output {
+                println!("Returning websocket thread");
                 return;
             }
             println!("Restarting websocket connection...");
@@ -147,7 +150,8 @@ fn websocket(
     client_information: ClientInformation,
     sender: Sender<Request>,
     receiver_arc: Arc<Mutex<Receiver<Request>>>,
-    inbound_socket_arc: Arc<Mutex<zmq::Socket>>,
+    inbound_sender: Sender<InboundMessage>,
+    // inbound_socket_arc: Arc<Mutex<zmq::Socket>>,
 ) -> Result<(JoinHandle<bool>, JoinHandle<bool>), &'static str> {
     let mut headers = Headers::new();
     headers.set(
@@ -225,7 +229,7 @@ fn websocket(
         // Unwrapping and locking should be fine over the
         // duration of the thread life, given that there is only
         // on thread handling the receiving from the socket
-        let inbound_socket = inbound_socket_arc.lock().unwrap();
+        // let inbound_socket = inbound_socket_arc.lock().unwrap();
 
         for message in client_receiver.incoming_messages() {
             println!("message received: {:?}", message);
@@ -234,6 +238,7 @@ fn websocket(
                 Err(e) => {
                     println!("Error in received message, closing connection: {:?}", e);
                     let _ = sender.send(Request::Close);
+                    let _ = inbound_sender.send(InboundMessage::Close);
                     // TODO: don't restart for now, if it gets here,
                     // daemon was probably given a close code and the sender_thread
                     // already send close
@@ -261,13 +266,7 @@ fn websocket(
                 },
                 OwnedMessage::Text(data) => {
                     println!("Received text message: {:?}", data);
-                    match inbound_socket.send((&data).as_bytes(), 0) {
-                        Ok(_) => (),
-                        Err(e) => {
-                            println!("ERROR SENDING: {:?}", e);
-                            continue;
-                        }
-                    };
+                    maybe_error(inbound_sender.send(InboundMessage::Data(data)));
                 },
                 OwnedMessage::Binary(data) => {
                     println!("Received binary message: {:?}", data);
