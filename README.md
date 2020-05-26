@@ -12,19 +12,19 @@
 There are five command line arguments that can be passed into the daemon:
 
 | Argument           | Required | Description                                                                                                                                                             |
-| ------------------ | -------: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| account_id (a)     |     true | your account id from, comes from your dashboard                                                                                                                         |
-| api_key (k)        |     true | your api key, can be found on the settings page in your dashboard                                                                                                       |
-| device_type_id (d) |     true | the id of a device type that you registered on the dashboard, can be found on the devices page of your dashboard                                                        |
-| outbound_port (o)  |    false | Defaults to port 5555. For sending messages from your device. You will need to create a ZeroMQ connection to this port to send information from your device.            |
-| inbound_port (i)   |    false | Defaults to port 5556. For receiving messages sent to your device. You will need to create a ZeroMQ connection to this port to receive information sent to your device. |
+| ------------------ | :------: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| account_id (a)     |   true   | your account id from, comes from your dashboard                                                                                                                         |
+| api_key (k)        |   true   | your api key, can be found on the settings page in your dashboard                                                                                                       |
+| device_type_id (d) |   true   | the id of a device type that you registered on the dashboard, can be found on the devices page of your dashboard                                                        |
+| outbound_port (o)  |  false   | Defaults to port 5555. For sending messages from your device. You will need to create a ZeroMQ connection to this port to send information from your device.            |
+| inbound_port (i)   |  false   | Defaults to port 5556. For receiving messages sent to your device. You will need to create a ZeroMQ connection to this port to receive information sent to your device. |
 
 To run the daemon, you just need to run the following command:
 `./herd-daemon -a {ACCOUNT_ID} -k {API_KEY} -d {DEVICE_TYPE_ID} -o {INBOUND_PORT} -i {OUTBOUND_PORT}`
 
 #### Communicating with daemon
 
-Herd uses [ZeroMQ](https://zeromq.org/) for communication between your device and the daemon. ZeroMQ is an open source messaging library with many well supported [bindings](https://zeromq.org/get-started/) for popular languages. The Herd daemon opens two ZeroMQ sockets, an outbound an inbound socket. There are a few different types of messaging patterns available in ZeroMQ, but Herd uses only two of them (Pair and Push/Pull).
+Herd uses [ZeroMQ](https://zeromq.org/) for communication between your device and the daemon. ZeroMQ is an open source messaging library with many well supported [bindings](https://zeromq.org/get-started/) for popular languages. The Herd daemon opens two ZeroMQ sockets, an outbound an inbound socket. There are a few different types of messaging patterns available in ZeroMQ, but Herd uses only two of them (Pub/Sub and Push/Pull).
 
 ##### Outbound socket
 
@@ -62,10 +62,10 @@ while True:
 
 There are three types of messages of messages that you can send to the daemon: close, register, message.
 
-**close**
+**close**:
 This message tells the daemon to close the connection with the Herd servers. Send the string `close` to close the connection and shutdown the daemon.
 
-**register**
+**register**:
 Register allows your websocket to register to different topics that you have defined in your dashboard. This message type is a JSON with keys `event_type` and `data`, with an array of strings `topics` is nested within data.
 
 ```
@@ -81,7 +81,7 @@ Register allows your websocket to register to different topics that you have def
 
 In the example above, we are saying that we want to register this device to all messages that are sent to topic "top_abc123". You can subscribe to any number of topics that you have made within your dashboard.
 
-**message**
+**message**:
 Message allows you to send data to other devices and webhooks. This messag type is a JSON with keys `event_type`, `topics`, and `data`.
 
 ```
@@ -101,7 +101,7 @@ In the example above, we are saying that we want to send `data` to all devices t
 
 ##### Inbound socket
 
-The inbound socket uses the Pair pattern. Once your daemon is running, you can receive messages with it like follows:
+The inbound socket uses the Pub/Sub pattern. Once your daemon is running, you can receive messages with it like follows:
 
 ```
 # Example inbound communication using
@@ -113,12 +113,15 @@ import zmq
 context = zmq.Context()
 
 # Define the socket using the "Context"
-sock = context.socket(zmq.PAIR)
+sock = context.socket(zmq.SUB)
 
 # 5556 is the value of inbound_port specified when
 # starting the daemon. The value below should reflect
 # your custom value.
 sock.connect("tcp://localhost:5556")
+
+# Subscribe to all topics
+sock.subscribe("")
 
 # Send a "message" using the socket
 while True:
@@ -133,7 +136,7 @@ while True:
 
 There are three different data message types that can be sent from the daemon to your application: data, restart, and close.
 
-**Data**
+**data**:
 The data message is a JSON representing data published by a device or websocket.
 
 ```
@@ -159,8 +162,8 @@ The data message is a JSON representing data published by a device or websocket.
 }
 ```
 
-**Restart**
+**restart**:
 The restart message is just the string `restart`. The purpose of this message type is to inform the client when the daemon is attempting to restart the connection with the Herd servers. This message will be received upon sudden connection loss or new api server deployment. The daemon will attempt to restart the connection a maximum of 10 times, with 5 seconds of waiting between each attempt. If the daemon is unsuccessful in restarting the connection, it will eventually send the `close` message to the client.
 
-**Close**
+**close**:
 The close message is just the string `close`. The purpose of this message is to notify the client when the daemon is shutting down, which can be due to the client sending `close` to the daemon or due to unsuccessfully connecting/restarting connection with the Herd servers.

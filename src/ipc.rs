@@ -130,10 +130,13 @@ pub fn initialize<'a>(
                 }
             };
 
+            println!("RECEIVER MESSAGE: {:?}", message);
+
             let send_result = match message {
                 InboundMessage::Data(d) => inbound_socket.send(d.as_bytes(), 0),
                 InboundMessage::Restart => inbound_socket.send("restart".as_bytes(), 0),
                 InboundMessage::Close => {
+                    println!("Hey?????");
                     let _ = inbound_socket.send("close".as_bytes(), 0);
                     println!("Returning from receiver thread");
                     return;

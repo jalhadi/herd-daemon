@@ -15,7 +15,7 @@ pub struct OutgoingData {
     pub data: Value,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum InboundMessage {
     Data(String),

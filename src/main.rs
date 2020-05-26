@@ -38,12 +38,12 @@ fn initialize<'a>(
     let context = zmq::Context::new();
     // For messages that come into the websocket, this is a channel
     // to comunicate with the process outside
-    let inbound_socket = context.socket(zmq::PAIR).unwrap();
+    let inbound_socket = context.socket(zmq::PUB).unwrap();
     let inbound_tcp_port = format!("tcp://*:{}", inbound_port);
     assert!(inbound_socket.bind(&inbound_tcp_port).is_ok());
 
-    // This is a PUSH socket such that the websocket
-    // can tell thread that handles incoming messages
+    // This is a PUSH socket such that the websocket thread
+    // can tell the thread handles incoming messages
     // from the client to close
     let ipc_socket = context.socket(zmq::PUSH).unwrap();
     let ipc_socket_port = format!("tcp://localhost:{}", outbound_port);
@@ -78,7 +78,7 @@ fn initialize<'a>(
         outbound_receiver,
         inbound_sender,
         // inbound_socket,
-        ipc_socket,
+        // ipc_socket,
     );
 
     (websocket_handler, outbound_message_thread, inbound_message_thead)

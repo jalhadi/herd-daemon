@@ -6,7 +6,6 @@ use hyper::header::parsing::from_one_raw_str;
 use std::{thread, time};
 use std::thread::JoinHandle;
 use std::fmt;
-use zmq;
 use std::sync::{Arc, Mutex};
 
 use crate::models::{Request, ClientInformation, InboundMessage};
@@ -72,11 +71,8 @@ pub fn initialize(
     sender: Sender<Request>,
     receiver: Receiver<Request>,
     inbound_sender: Sender<InboundMessage>,
-    // inbound_socket: zmq::Socket,
-    ipc_socket: zmq::Socket,
 ) -> JoinHandle<()> {
     let receiver_arc = Arc::new(Mutex::new(receiver));
-    // let inbound_socket_arc = Arc::new(Mutex::new(inbound_socket));
     thread::spawn(move || {
         let mut retries = 0;
         loop {
@@ -89,7 +85,6 @@ pub fn initialize(
                 sender.clone(),
                 receiver_arc.clone(),
                 inbound_sender.clone(),
-                // inbound_socket_arc.clone()
             );
 
             let (sender_thread, receiver_thread) = match result {
@@ -116,7 +111,6 @@ pub fn initialize(
                             "Error starting websocket connection. Max retries ({}) exceeded.",
                             MAX_RETRIES
                         );
-                        maybe_error(ipc_socket.send("WebsocketClose".as_bytes(), 0));
                         maybe_error(inbound_sender.send(InboundMessage::Close));
                         return;
                     }
@@ -138,6 +132,7 @@ pub fn initialize(
             };
             if !sender_output && !receiver_output {
                 println!("Returning websocket thread");
+                maybe_error(inbound_sender.send(InboundMessage::Close));
                 return;
             }
             println!("Restarting websocket connection...");
@@ -152,7 +147,6 @@ fn websocket(
     sender: Sender<Request>,
     receiver_arc: Arc<Mutex<Receiver<Request>>>,
     inbound_sender: Sender<InboundMessage>,
-    // inbound_socket_arc: Arc<Mutex<zmq::Socket>>,
 ) -> Result<(JoinHandle<bool>, JoinHandle<bool>), &'static str> {
     let mut headers = Headers::new();
     headers.set(
@@ -271,8 +265,6 @@ fn websocket(
                 },
                 OwnedMessage::Binary(data) => {
                     println!("Received binary message: {:?}", data);
-                    // inbound_socket.send(data, 0).unwrap();
-                    // inbound_socket.recv(&mut inbound_msg, 0).unwrap();
                 },
                 _ => println!("Pong received"),
             }
