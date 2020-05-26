@@ -63,7 +63,7 @@ pub fn initialize<'a>(
             println!("Message received: {:?}", message);
 
             match message {
-                "Close" => {
+                "close" => {
                     println!("Closing connection.");
                     let _ = sender.send(Request::Close);
                     println!("Returning from sender thread");

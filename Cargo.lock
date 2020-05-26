@@ -234,7 +234,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "graph-analytics-daemon"
+name = "heck"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "20564e78d53d2bb135c343b3f47714a56af2061f1c928fdb541dc7b9fdd94205"
+dependencies = [
+ "unicode-segmentation",
+]
+
+[[package]]
+name = "herd-daemon"
 version = "0.1.0"
 dependencies = [
  "clap",
@@ -246,15 +255,6 @@ dependencies = [
  "uuid",
  "websocket",
  "zmq",
-]
-
-[[package]]
-name = "heck"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "20564e78d53d2bb135c343b3f47714a56af2061f1c928fdb541dc7b9fdd94205"
-dependencies = [
- "unicode-segmentation",
 ]
 
 [[package]]

@@ -64,6 +64,7 @@ impl ClientInformation {
 }
 
 const MAX_RETRIES: u32 = 10;
+// TODO: change back to 5000 when ready
 const RETRY_SLEEP_DURATION_MILLIS: u64 = 1000;
 
 pub fn initialize(
