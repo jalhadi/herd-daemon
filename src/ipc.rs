@@ -5,7 +5,13 @@ use std::time::SystemTime;
 use serde_json::{Result as SerdeResult};
 use zmq;
 
-use crate::models::{OutgoingData, Event, Request, InboundMessage};
+use crate::models::{
+    ClientMessage,
+    OutboundMessage,
+    Event,
+    Request,
+    InboundMessage,
+};
 
 struct CreatedAt {
     seconds_since_unix: u64,
@@ -61,53 +67,45 @@ pub fn initialize<'a>(
             };
 
             println!("Message received: {:?}", message);
+            let client_message: SerdeResult<ClientMessage> = serde_json::from_str(message);
 
-            match message {
-                "close" => {
+            let client_message = match client_message {
+                Ok(d) => d,
+                Err(e) => {
+                    println!("Error deserializing data: {:?}", e);
+                    continue;
+                }
+            };
+
+            match client_message {
+                ClientMessage::Close => {
                     println!("Closing connection.");
                     let _ = sender.send(Request::Close);
                     println!("Returning from sender thread");
                     return;
                 },
-                "WebsocketClose" => {
+                ClientMessage::WebsocketClose => {
                     println!("Websocket closed. Closing connection.");
                     return;
                 },
-                _ => {
-                    let data: SerdeResult<OutgoingData> = serde_json::from_str(message);
-
-                    let data = match data {
-                        Ok(d) => d,
-                        Err(e) => {
-                            println!("Error deserializing data: {:?}", e);
-                            continue;
-                        }
+                ClientMessage::Register { topics } => {
+                    let event = Event::Register {
+                        topics,
                     };
 
-                    let event: Event;
-                    if data.event_type == "register" {
-                        let topics = match data.data.get("topics") {
-                            Some(t) => t.to_owned(),
-                            None => {
-                                println!("topics field not present");
-                                continue;
-                            }
-                        };
-                        event = Event::Register {
-                            topics,
-                        }
-
-                    } else if data.event_type == "message" {
-                        event = Event::Message {
-                            seconds_since_unix: time.seconds_since_unix,
-                            nano_seconds: time.nano_seconds,
-                            topics: data.topics,
-                            data: data.data,
-                        };
-                    } else {
-                        println!("{:?} not a valid event type.", data.event_type);
-                        continue;
-                    }
+                    let request_data = Request::Data(event);
+                    match sender.send(request_data) {
+                        Ok(_) => (),
+                        Err(e) => println!("Error passing message: {:?}", e),
+                    };
+                }
+                ClientMessage::Data { topics, data } => {
+                    let event = Event::Message {
+                        seconds_since_unix: time.seconds_since_unix,
+                        nano_seconds: time.nano_seconds,
+                        topics,
+                        data,
+                    };
 
                     let request_data = Request::Data(event);
                     match sender.send(request_data) {
@@ -134,10 +132,11 @@ pub fn initialize<'a>(
 
             let send_result = match message {
                 InboundMessage::Data(d) => inbound_socket.send(d.as_bytes(), 0),
-                InboundMessage::Restart => inbound_socket.send("restart".as_bytes(), 0),
+                InboundMessage::Restart =>
+                    inbound_socket.send(serde_json::to_string(&InboundMessage::Restart).unwrap().as_bytes(), 0),
                 InboundMessage::Close => {
                     println!("Hey?????");
-                    let _ = inbound_socket.send("close".as_bytes(), 0);
+                    let _ = inbound_socket.send(serde_json::to_string(&InboundMessage::Close).unwrap().as_bytes(), 0);
                     println!("Returning from receiver thread");
                     return;
                 },

@@ -8,11 +8,25 @@ pub struct Data {
     pub data: Value
 }
 
-#[derive(Deserialize)]
-pub struct OutgoingData {
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OutboundMessage {
     pub event_type: String,
     pub topics: Vec<String>,
     pub data: Value,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum ClientMessage {
+    Data {
+        topics: Vec<String>,
+        data: Value,
+    },
+    Register {
+        topics: Vec<String>,
+    },
+    Close,
+    WebsocketClose,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -33,7 +47,7 @@ pub enum Event {
     },
     Register {
         // TODO: as vector of strings
-        topics: Value
+        topics: Vec<String>,
     }
 }
 

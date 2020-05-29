@@ -60,33 +60,38 @@ while True:
 
 ###### Message types
 
-There are three types of messages of messages that you can send to the daemon: close, register, message.
+There are three types of messages of messages that you can send to the daemon: Close, Register, Data.
 
-**close**:
-This message tells the daemon to close the connection with the Herd servers. Send the string `close` to close the connection and shutdown the daemon.
-
-**register**:
-Register allows your websocket to register to different topics that you have defined in your dashboard. This message type is a JSON with keys `event_type` and `data`, with an array of strings `topics` is nested within data.
+**Close**:
+This message tells the daemon to close the connection with the Herd servers. Sending the JSON with the type `Close` does this.
 
 ```
 {
-  "event_type": "register",
-  "data": {
-    "topics":[
-      "top_abc123"
-    ]
-  }
+  "type": "Close"
+}
+```
+
+**Register**:
+Register allows your websocket to register to different topics that you have defined in your dashboard. This message type is a JSON with keys `type` and `topics`.
+
+```
+{
+  "type": "Register",
+  "topics": [
+    "top_abc123",
+    "top_foobar"
+  ],
 }
 ```
 
 In the example above, we are saying that we want to register this device to all messages that are sent to topic "top_abc123". You can subscribe to any number of topics that you have made within your dashboard.
 
-**message**:
-Message allows you to send data to other devices and webhooks. This messag type is a JSON with keys `event_type`, `topics`, and `data`.
+**Data**:
+Message allows you to send data to other devices and webhooks. This messag type is a JSON with keys `type`, `topics`, and `data`.
 
 ```
 {
-  "event_type": "message",
+  "type": "Data",
   "topics": [
     "top_abc123",
     "top_foobar"
@@ -163,7 +168,7 @@ The data message is a JSON representing data published by a device or websocket.
 ```
 
 **restart**:
-The restart message is just the string `restart`. The purpose of this message type is to inform the client when the daemon is attempting to restart the connection with the Herd servers. This message will be received upon sudden connection loss or new api server deployment. The daemon will attempt to restart the connection a maximum of 10 times, with 5 seconds of waiting between each attempt. If the daemon is unsuccessful in restarting the connection, it will eventually send the `close` message to the client.
+The restart message is the JSON `{ type: "Restart" }`. The purpose of this message type is to inform the client when the daemon is attempting to restart the connection with the Herd servers. This message will be received upon sudden connection loss or new api server deployment. The daemon will attempt to restart the connection a maximum of 10 times, with 5 seconds of waiting between each attempt. If the daemon is unsuccessful in restarting the connection, it will eventually send the `close` message to the client.
 
 **close**:
-The close message is just the string `close`. The purpose of this message is to notify the client when the daemon is shutting down, which can be due to the client sending `close` to the daemon or due to unsuccessfully connecting/restarting connection with the Herd servers.
+The close message is the JSON `{ type: "Close" }`. The purpose of this message is to notify the client when the daemon is shutting down, which can be due to the client sending `close` to the daemon or due to unsuccessfully connecting/restarting connection with the Herd servers.
