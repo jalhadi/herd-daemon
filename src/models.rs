@@ -46,7 +46,6 @@ pub enum Event {
         data: Value
     },
     Register {
-        // TODO: as vector of strings
         topics: Vec<String>,
     }
 }

@@ -7,7 +7,6 @@ use zmq;
 
 use crate::models::{
     ClientMessage,
-    OutboundMessage,
     Event,
     Request,
     InboundMessage,
@@ -119,7 +118,6 @@ pub fn initialize<'a>(
 
     let receiver_thread = thread::spawn(move || {
         loop {
-            // let message = receiver.recv().unwrap();
             let message = match receiver.recv() {
                 Ok(m) => m,
                 Err(e) => {
