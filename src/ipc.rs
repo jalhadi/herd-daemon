@@ -1,4 +1,6 @@
 use std::sync::mpsc::{Sender, Receiver};
+use std::sync::{Arc, Mutex};
+use std::collections::HashSet;
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::SystemTime;
@@ -44,6 +46,7 @@ pub fn initialize<'a>(
     outbound_port: &'a str,
     context: zmq::Context,
     inbound_socket: zmq::Socket,
+    registered_topics: Arc<Mutex<HashSet::<String>>>,
 ) -> (JoinHandle<()>, JoinHandle<()>) {
     let subscriber = context.socket(zmq::PULL).unwrap();
     let outbound_tcp_port = format!("tcp://*:{}", outbound_port);
@@ -88,6 +91,13 @@ pub fn initialize<'a>(
                     return;
                 },
                 ClientMessage::Register { topics } => {
+                    {
+                        let mut data = registered_topics.lock().unwrap();
+                        for topic in &topics {
+                            data.insert(topic.clone());
+                        }
+                    }
+
                     let event = Event::Register {
                         topics,
                     };

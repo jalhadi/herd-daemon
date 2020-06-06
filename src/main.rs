@@ -11,6 +11,8 @@ use daemonize::Daemonize;
 use std::thread::JoinHandle;
 use zmq;
 use mac_address::get_mac_address;
+use std::collections::HashSet;
+use std::sync::{Arc, Mutex};
 
 mod connection;
 mod models;
@@ -49,6 +51,9 @@ fn initialize<'a>(
     let ipc_socket_port = format!("tcp://localhost:{}", outbound_port);
     assert!(ipc_socket.connect(&ipc_socket_port).is_ok());
 
+    // HashSet of registered topics, useful when the server restarts
+    let registered_topics = Arc::new(Mutex::new(HashSet::<String>::new()));
+
     // DEFINITIONS
     // outbound_: data and structures supporting data
     // moving from inside the system to the external server
@@ -64,6 +69,7 @@ fn initialize<'a>(
         outbound_port,
         context.clone(),
         inbound_socket,
+        registered_topics.clone(),
     );
 
     let client_information = ClientInformation::new(
@@ -77,8 +83,7 @@ fn initialize<'a>(
         outbound_sender,
         outbound_receiver,
         inbound_sender,
-        // inbound_socket,
-        // ipc_socket,
+        registered_topics,
     );
 
     (websocket_handler, outbound_message_thread, inbound_message_thead)
@@ -102,8 +107,8 @@ fn main() {
     // cargo run -- -a acct -k key -p 1234 -d dev_abc123
     let opts = Opts::parse();
 
-    let stdout = File::create("/tmp/daemon.out").expect("Failed to create output file.");
-    let stderr = File::create("/tmp/daemon.err").expect("Faile to create input file.");
+    let stdout = File::create("/tmp/herd-daemon.out").expect("Failed to create output file.");
+    let stderr = File::create("/tmp/herd-daemon.err").expect("Faile to create input file.");
 
     let addr = match get_mac_address() {
         Ok(Some(ma)) => ma.bytes(),

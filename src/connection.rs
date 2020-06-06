@@ -6,9 +6,11 @@ use hyper::header::parsing::from_one_raw_str;
 use std::{thread, time};
 use std::thread::JoinHandle;
 use std::fmt;
+use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
+use std::iter::FromIterator;
 
-use crate::models::{Request, ClientInformation, InboundMessage};
+use crate::models::{Request, ClientInformation, InboundMessage, Event};
 use crate::utils::maybe_error;
 
 #[derive(Debug, Clone)]
@@ -71,6 +73,7 @@ pub fn initialize(
     sender: Sender<Request>,
     receiver: Receiver<Request>,
     inbound_sender: Sender<InboundMessage>,
+    registered_topics: Arc<Mutex<HashSet::<String>>>,
 ) -> JoinHandle<()> {
     let receiver_arc = Arc::new(Mutex::new(receiver));
     thread::spawn(move || {
@@ -85,6 +88,7 @@ pub fn initialize(
                 sender.clone(),
                 receiver_arc.clone(),
                 inbound_sender.clone(),
+                registered_topics.clone(),
             );
 
             let (sender_thread, receiver_thread) = match result {
@@ -147,6 +151,7 @@ fn websocket(
     sender: Sender<Request>,
     receiver_arc: Arc<Mutex<Receiver<Request>>>,
     inbound_sender: Sender<InboundMessage>,
+    registered_topics: Arc<Mutex<HashSet::<String>>>,
 ) -> Result<(JoinHandle<bool>, JoinHandle<bool>), &'static str> {
     let mut headers = Headers::new();
     headers.set(
@@ -177,6 +182,21 @@ fn websocket(
             return Err("Error splitting client.");
         }
     };
+
+    {
+        let mut topics = registered_topics.lock().unwrap();
+        // Send reregister event if a topic was registered
+        if topics.len() > 0 {
+            let json_string = serde_json::to_string(&Event::Register {
+                topics: Vec::from_iter(topics.drain()),
+            }).expect("Error parsing data.");
+            match client_sender.send_message(&OwnedMessage::Text(json_string)) {
+                Ok(()) => println!("Reregistering topics."),
+                Err(e) => eprintln!("{:?}", e),
+            };
+        }
+    }
+
     let sender_thread = thread::spawn(move || {
         // Unwrapping and locking the receiver portion
         // over the thread life should be fine as only one
