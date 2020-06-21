@@ -7,6 +7,8 @@ use std::time::SystemTime;
 use serde_json::{Result as SerdeResult};
 use zmq;
 
+use crate::utils::maybe_error;
+
 use crate::models::{
     ClientMessage,
     Event,
@@ -68,7 +70,6 @@ pub fn initialize<'a>(
                 Err(_) => continue,
             };
 
-            println!("Message received: {:?}", message);
             let client_message: SerdeResult<ClientMessage> = serde_json::from_str(message);
 
             let client_message = match client_message {
@@ -83,7 +84,6 @@ pub fn initialize<'a>(
                 ClientMessage::Close => {
                     println!("Closing connection.");
                     let _ = sender.send(Request::Close);
-                    println!("Returning from sender thread");
                     return;
                 },
                 ClientMessage::WebsocketClose => {
@@ -103,10 +103,8 @@ pub fn initialize<'a>(
                     };
 
                     let request_data = Request::Data(event);
-                    match sender.send(request_data) {
-                        Ok(_) => (),
-                        Err(e) => println!("Error passing message: {:?}", e),
-                    };
+                    maybe_error(sender.send(request_data));
+
                 }
                 ClientMessage::Data { topics, data } => {
                     let event = Event::Message {
@@ -117,10 +115,7 @@ pub fn initialize<'a>(
                     };
 
                     let request_data = Request::Data(event);
-                    match sender.send(request_data) {
-                        Ok(_) => (),
-                        Err(e) => println!("Error passing message: {:?}", e),
-                    };
+                    maybe_error(sender.send(request_data));
                 },
             };
         };
@@ -131,21 +126,17 @@ pub fn initialize<'a>(
             let message = match receiver.recv() {
                 Ok(m) => m,
                 Err(e) => {
-                    println!("ERROR SENDING: {:?}", e);
+                    eprintln!("Error sending message: {:?}", e);
                     continue;
                 }
             };
-
-            println!("RECEIVER MESSAGE: {:?}", message);
 
             let send_result = match message {
                 InboundMessage::Data(d) => inbound_socket.send(d.as_bytes(), 0),
                 InboundMessage::Restart =>
                     inbound_socket.send(serde_json::to_string(&InboundMessage::Restart).unwrap().as_bytes(), 0),
                 InboundMessage::Close => {
-                    println!("Hey?????");
                     let _ = inbound_socket.send(serde_json::to_string(&InboundMessage::Close).unwrap().as_bytes(), 0);
-                    println!("Returning from receiver thread");
                     return;
                 },
             };

@@ -104,10 +104,7 @@ pub fn initialize(
                             retries,
                             MAX_RETRIES
                         );
-                        match inbound_sender.send(InboundMessage::Restart) {
-                            Ok(_) => (),
-                            Err(e) => eprintln!("{:?}", e),
-                        };
+                        maybe_error(inbound_sender.send(InboundMessage::Restart));
                         thread::sleep(time::Duration::from_millis(RETRY_SLEEP_DURATION_MILLIS));
                         continue;
                     } else {
@@ -145,7 +142,6 @@ pub fn initialize(
     }) 
 }
 
-// TODO: add reconnect logic on disconnect
 fn websocket(
     client_information: ClientInformation,
     sender: Sender<Request>,
