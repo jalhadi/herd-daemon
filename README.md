@@ -3,7 +3,7 @@
 #### Building
 
 1. [Install Rust](https://www.rust-lang.org/tools/install) `1.43.0` or later
-2. Run `git@github.com:jalhadi/herd-daemon.git && cd herd-daemon`
+2. Run `git clone https://github.com/jalhadi/herd-daemon.git && cd herd-daemon`
 3. Build the daemon from source `cargo build --release`
 4. The binary can now be found as `/target/release/herd-daemon` and can be distributed to your device
 
